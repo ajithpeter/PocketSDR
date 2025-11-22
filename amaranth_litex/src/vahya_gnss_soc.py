@@ -26,6 +26,8 @@ from litex.soc.cores.gpio import GPIOOut, GPIOIn
 
 from litex.build.generic_platform import Pins, Subsignal, IOStandard
 
+from litex_gpsdo import GPSDO_Core
+
 
 class VahyaGNSSSoC(SoCCore):
     """
@@ -59,6 +61,7 @@ class VahyaGNSSSoC(SoCCore):
     0x30000000 - 0x3000FFFF: GPIO
     0x40000000 - 0x4000FFFF: GNSS Baseband
     0x50000000 - 0x5000FFFF: USB Control
+    0x60000000 - 0x6000FFFF: GPSDO (GPS Disciplined Oscillator)
     0xF0000000 - 0xFFFFFFFF: SPI Flash
 
     Parameters
@@ -154,6 +157,11 @@ class VahyaGNSSSoC(SoCCore):
                 self.leds.bus
             )
             self.add_memory_region("gpio_leds", 0x30000000, 0x10000, type="io")
+
+        # === GPSDO (GPS Disciplined Oscillator) ===
+
+        self.submodules.gpsdo = GPSDO_Core(platform, sys_clk_freq=sys_clk_freq)
+        self.add_csr("gpsdo")
 
         # === GNSS Baseband Processor ===
 
@@ -336,6 +344,25 @@ class VahyaPlatform:
                         Subsignal("miso", Pins("V2")),
                         IOStandard("LVCMOS33")
                     ),
+
+                    # GPSDO DAC SPI interface
+                    ("gpsdo_dac", 0,
+                        Subsignal("cs", Pins("B2")),      # DAC chip select
+                        Subsignal("clk", Pins("C2")),     # DAC SPI clock
+                        Subsignal("mosi", Pins("D2")),    # DAC SPI data
+                        IOStandard("LVCMOS33")
+                    ),
+
+                    # GPSDO PPS outputs
+                    ("gpsdo_pps", 0,
+                        Subsignal("gps_pps", Pins("E2")),    # GPS 1PPS output
+                        Subsignal("led", Pins("F2")),        # PPS LED indicator
+                        Subsignal("clk_1pps", Pins("G2")),   # Disciplined 1PPS
+                        IOStandard("LVCMOS33")
+                    ),
+
+                    # Local oscillator 1PPS input (from TCXO/OCXO board)
+                    ("gpsdo_local_pps", 0, Pins("H3"), IOStandard("LVCMOS33")),
                 ]
 
                 # ECP5-25F in BG256 package
