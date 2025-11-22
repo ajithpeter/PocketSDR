@@ -118,12 +118,12 @@ class ChannelCore(wiring.Component):
         # Both generators receive same control signals
         m.d.comb += [
             gps_gen.prn.eq(self.prn),
-            gps_gen.chip_index.eq(code_nco.chip_count),
+            gps_gen.chip_index.eq(code_nco.chip_index),
             gps_gen.chip_strobe.eq(code_nco.chip_strobe),
             gps_gen.reset.eq(self.reset),
 
             navic_gen.prn.eq(self.prn),
-            navic_gen.chip_index.eq(code_nco.chip_count),
+            navic_gen.chip_index.eq(code_nco.chip_index),
             navic_gen.chip_strobe.eq(code_nco.chip_strobe),
             navic_gen.reset.eq(self.reset)
         ]
@@ -218,7 +218,7 @@ class ChannelCore(wiring.Component):
             self.corr_l_q.eq(correlator.corr_l_q),
 
             # Status
-            self.chip_count.eq(code_nco.chip_count),
+            self.chip_count.eq(code_nco.chip_index),
             self.code_epoch.eq(code_nco.code_epoch),
             self.dump_ready.eq(correlator.dump_valid)
         ]
@@ -227,7 +227,7 @@ class ChannelCore(wiring.Component):
 
 
 if __name__ == "__main__":
-    from amaranth.sim import Simulator
+    from amaranth.sim import Simulator, Tick
     import math
 
     dut = ChannelCore(channel_id=0)
@@ -268,10 +268,10 @@ if __name__ == "__main__":
         # Reset channel
         print("\n[INIT] Resetting channel")
         yield dut.reset.eq(1)
-        yield
+        yield Tick()
         yield dut.reset.eq(0)
         yield dut.enable.eq(1)
-        yield
+        yield Tick()
 
         # Simulate incoming I/Q samples
         print("\n[RUN] Processing samples...")
@@ -282,7 +282,7 @@ if __name__ == "__main__":
             yield dut.samples.payload.i.eq(1)   # Constant +1
             yield dut.samples.payload.q.eq(0)   # Zero Q
             yield dut.samples.valid.eq(1)
-            yield
+            yield Tick()
 
             # Check for dump ready
             dump_ready = yield dut.dump_ready
@@ -330,7 +330,7 @@ if __name__ == "__main__":
             yield dut.samples.payload.i.eq(1)
             yield dut.samples.payload.q.eq(0)
             yield dut.samples.valid.eq(1)
-            yield
+            yield Tick()
 
             code_epoch = yield dut.code_epoch
             if code_epoch:
@@ -350,7 +350,7 @@ if __name__ == "__main__":
         code_freq_word_navic = int((10.23e6 / 16e6) * (2**32))
         yield dut.code_freq.eq(code_freq_word_navic)
         yield dut.reset.eq(1)
-        yield
+        yield Tick()
         yield dut.reset.eq(0)
 
         print(f"  NavIC code freq word: {code_freq_word_navic} (10.23 Mcps)")
@@ -360,7 +360,7 @@ if __name__ == "__main__":
             yield dut.samples.payload.i.eq(1)
             yield dut.samples.payload.q.eq(0)
             yield dut.samples.valid.eq(1)
-            yield
+            yield Tick()
 
             dump_ready = yield dut.dump_ready
             if dump_ready:
@@ -390,7 +390,7 @@ if __name__ == "__main__":
 
     sim = Simulator(dut)
     sim.add_clock(1/16e6)  # 16 MHz system clock
-    sim.add_process(testbench)
+    sim.add_testbench(testbench)
 
     with sim.write_vcd("channel_core.vcd", "channel_core.gtkw",
                        traces=[

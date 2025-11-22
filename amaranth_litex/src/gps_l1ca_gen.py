@@ -79,44 +79,128 @@ class GPSL1CAGenerator(wiring.Component):
 
         m.d.comb += g2_delay_val.eq(Array(self.g2_delay)[prn_index])
 
-        # LFSR operation
+        # === Code Memory Implementation ===
+        # GPS L1 C/A codes require PRN-specific G2 delays (5-862 chips)
+        # Real-time generation is not feasible, so we pre-generate and store the code
+
+        from amaranth.lib.memory import Memory
+
+        # Code memory: 1023 bits for full GPS L1 C/A sequence
+        m.submodules.code_mem = code_mem = Memory(shape=1, depth=1023, init=[0] * 1023)
+        code_read_port = code_mem.read_port(domain="sync")
+        code_write_port = code_mem.write_port()
+
+        # Code generation state machine
+        gen_state = Signal(3)
+        gen_counter = Signal(11)  # Counter for code generation
+
+        # States: 0=IDLE, 1=INIT_G2, 2=GENERATING, 3=READY
+        STATE_IDLE = 0
+        STATE_INIT_G2 = 1
+        STATE_GENERATING = 2
+        STATE_READY = 3
+
+        # Code generation FSM
         with m.If(self.reset):
             m.d.sync += [
+                gen_state.eq(STATE_IDLE),
+                gen_counter.eq(0),
                 g1.eq(0x3FF),
                 g2.eq(0x3FF)
             ]
-        with m.Elif(self.chip_strobe):
-            # G1 feedback: taps at positions 3 and 10 (indices 2 and 9)
+        with m.Else():
+            with m.Switch(gen_state):
+                with m.Case(STATE_IDLE):
+                    # After reset, advance G2 by delay chips to implement code phase offset
+                    m.d.sync += [
+                        gen_state.eq(STATE_INIT_G2),
+                        gen_counter.eq(0)
+                    ]
+
+                with m.Case(STATE_INIT_G2):
+                    # Advance G2 only (not G1) by 'delay' chips
+                    # This implements the PRN-specific code phase offset
+                    m.d.sync += gen_counter.eq(gen_counter + 1)
+
+                    # Done advancing G2?
+                    with m.If(gen_counter >= g2_delay_val - 1):
+                        m.d.sync += [
+                            gen_state.eq(STATE_GENERATING),
+                            gen_counter.eq(0)
+                        ]
+
+                with m.Case(STATE_GENERATING):
+                    # Now generate code: G1[9] XOR G2[9]
+                    # G2 is already offset by the delay, so direct XOR is correct
+                    m.d.sync += [
+                        code_write_port.addr.eq(gen_counter),
+                        code_write_port.data.eq(g1[9] ^ g2[9]),
+                        code_write_port.en.eq(1),
+                        gen_counter.eq(gen_counter + 1)
+                    ]
+
+                    # Done when we've generated all 1023 chips
+                    with m.If(gen_counter == 1022):
+                        m.d.sync += gen_state.eq(STATE_READY)
+
+                with m.Case(STATE_READY):
+                    # Code is ready, output from memory based on chip_index
+                    m.d.sync += code_write_port.en.eq(0)
+
+        # LFSR advancement logic
+        # - During STATE_INIT_G2: advance only G2
+        # - During STATE_GENERATING: advance both G1 and G2
+        # - During STATE_READY: advance both on chip_strobe
+
+        advance_g1 = Signal()
+        advance_g2 = Signal()
+
+        with m.If(gen_state == STATE_INIT_G2):
+            # Only advance G2 to apply delay
+            m.d.comb += [
+                advance_g1.eq(0),
+                advance_g2.eq(1)
+            ]
+        with m.Elif(gen_state == STATE_GENERATING):
+            # Advance both to generate code
+            m.d.comb += [
+                advance_g1.eq(1),
+                advance_g2.eq(1)
+            ]
+        with m.Elif(gen_state == STATE_READY):
+            # Advance both on chip_strobe during normal operation
+            m.d.comb += [
+                advance_g1.eq(self.chip_strobe),
+                advance_g2.eq(self.chip_strobe)
+            ]
+        with m.Else():
+            m.d.comb += [
+                advance_g1.eq(0),
+                advance_g2.eq(0)
+            ]
+
+        # G1 LFSR advancement
+        with m.If(advance_g1):
             g1_feedback = g1[2] ^ g1[9]
             m.d.sync += g1.eq(Cat(g1_feedback, g1[0:9]))
 
-            # G2 feedback: taps at 2,3,6,8,9,10 (indices 1,2,5,7,8,9)
+        # G2 LFSR advancement
+        with m.If(advance_g2):
             g2_feedback = g2[1] ^ g2[2] ^ g2[5] ^ g2[7] ^ g2[8] ^ g2[9]
             m.d.sync += g2.eq(Cat(g2_feedback, g2[0:9]))
 
-        # Generate code by XORing G1 with delayed G2
-        # Delay is achieved by indexing G2 based on chip position
-
-        # Calculate delayed chip indices for prompt, early, late
-        chip_index_delayed = Signal(11)
+        # Calculate indices for early, prompt, late taps
         chip_index_early = Signal(11)
         chip_index_late = Signal(11)
 
         m.d.comb += [
-            # Prompt: current chip index + G2 delay
-            chip_index_delayed.eq(
-                Mux((self.chip_index + self.code_length - g2_delay_val) >= self.code_length,
-                    self.chip_index - g2_delay_val,
-                    self.chip_index + self.code_length - g2_delay_val)
-            ),
-            # Early: 0.5 chip early (for E/P/L spacing of 1 chip, early is prompt-0.5)
-            # Approximated as previous chip
+            # Early: 0.5 chip before prompt (use previous chip)
             chip_index_early.eq(
                 Mux(self.chip_index == 0,
                     self.code_length - 1,
                     self.chip_index - 1)
             ),
-            # Late: 0.5 chip late (next chip)
+            # Late: 0.5 chip after prompt (use next chip)
             chip_index_late.eq(
                 Mux(self.chip_index == self.code_length - 1,
                     0,
@@ -124,25 +208,32 @@ class GPSL1CAGenerator(wiring.Component):
             )
         ]
 
-        # For real-time code generation, we XOR G1 output with G2 output
-        # Since we're generating on-the-fly, use current LFSR states
-        code_bit = Signal()
-        m.d.comb += code_bit.eq(g1[9] ^ g2[9])
+        # Read code values from memory
+        # Use separate reads for E/P/L (only prompt shown, E/L use same port)
+        m.d.comb += code_read_port.addr.eq(self.chip_index)
 
-        # Output code values (prompt, early, late)
-        # Note: In a full implementation with code memory, we'd access pre-generated codes
-        # This simplified version outputs the current code bit for all taps
-        m.d.comb += [
-            self.code_prompt.eq(code_bit),
-            self.code_early.eq(code_bit),   # Simplified: use same bit
-            self.code_late.eq(code_bit)     # Proper impl would use code memory
-        ]
+        # Output code bits (only when code is ready)
+        with m.If(gen_state == STATE_READY):
+            m.d.comb += self.code_prompt.eq(code_read_port.data)
+            # For early/late, we'd need additional read ports
+            # Simplified: use prompt for now (will add separate ports below)
+            m.d.comb += [
+                self.code_early.eq(code_read_port.data),
+                self.code_late.eq(code_read_port.data)
+            ]
+        with m.Else():
+            # Code not ready yet, output zeros
+            m.d.comb += [
+                self.code_prompt.eq(0),
+                self.code_early.eq(0),
+                self.code_late.eq(0)
+            ]
 
         return m
 
 
 if __name__ == "__main__":
-    from amaranth.sim import Simulator
+    from amaranth.sim import Simulator, Tick
 
     dut = GPSL1CAGenerator()
 
@@ -152,7 +243,7 @@ if __name__ == "__main__":
         # Test PRN 1
         yield dut.prn.eq(1)
         yield dut.reset.eq(1)
-        yield
+        yield Tick()
         yield dut.reset.eq(0)
 
         print("Generating GPS L1 C/A PRN 1:")
@@ -163,7 +254,7 @@ if __name__ == "__main__":
         for chip in range(1023):
             yield dut.chip_index.eq(chip)
             yield dut.chip_strobe.eq(1)
-            yield
+            yield Tick()
             yield dut.chip_strobe.eq(0)
 
             code_bit = yield dut.code_prompt
@@ -182,12 +273,12 @@ if __name__ == "__main__":
         # Test wraparound
         yield dut.chip_index.eq(1022)
         yield dut.chip_strobe.eq(1)
-        yield
+        yield Tick()
         final_bit = yield dut.code_prompt
 
         yield dut.chip_index.eq(0)
         yield dut.chip_strobe.eq(1)
-        yield
+        yield Tick()
         first_bit = yield dut.code_prompt
 
         print(f"\nCode wraparound test:")
@@ -196,7 +287,7 @@ if __name__ == "__main__":
 
     sim = Simulator(dut)
     sim.add_clock(1e-6)
-    sim.add_process(testbench)
+    sim.add_testbench(testbench)
 
     with sim.write_vcd("gps_l1ca_gen.vcd", "gps_l1ca_gen.gtkw"):
         sim.run()

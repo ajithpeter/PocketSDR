@@ -167,7 +167,7 @@ class Correlator(wiring.Component):
 
 
 if __name__ == "__main__":
-    from amaranth.sim import Simulator
+    from amaranth.sim import Simulator, Tick
     import math
 
     dut = Correlator()
@@ -180,7 +180,7 @@ if __name__ == "__main__":
         carrier_freq = 0.1  # radians per sample
 
         yield dut.reset.eq(1)
-        yield
+        yield Tick()
         yield dut.reset.eq(0)
         yield dut.integrate.eq(1)
 
@@ -206,27 +206,57 @@ if __name__ == "__main__":
             yield dut.code_early.eq(code_val)
             yield dut.code_prompt.eq(code_val)
             yield dut.code_late.eq(code_val)
-            yield
+            yield Tick()
 
         # Dump results
         yield dut.integrate.eq(0)
         yield dut.dump.eq(1)
-        yield
-        yield dut.dump.eq(0)
-        yield
+        yield Tick()
 
-        # Read correlation results
+        # Read correlation results immediately after dump cycle
         dump_valid = yield dut.dump_valid
+        corr_p_i = yield dut.corr_p_i
+        corr_p_q = yield dut.corr_p_q
+        corr_e_i = yield dut.corr_e_i
+        corr_e_q = yield dut.corr_e_q
+        corr_l_i = yield dut.corr_l_i
+        corr_l_q = yield dut.corr_l_q
+
+        # Convert to signed integers if needed
+        if corr_p_i >= 2**31:
+            corr_p_i -= 2**32
+        if corr_p_q >= 2**31:
+            corr_p_q -= 2**32
+        if corr_e_i >= 2**31:
+            corr_e_i -= 2**32
+        if corr_e_q >= 2**31:
+            corr_e_q -= 2**32
+        if corr_l_i >= 2**31:
+            corr_l_i -= 2**32
+        if corr_l_q >= 2**31:
+            corr_l_q -= 2**32
+
+        print(f"Dump valid: {dump_valid}")
+        print(f"Early I/Q: {corr_e_i}, {corr_e_q}")
+        print(f"Prompt I/Q: {corr_p_i}, {corr_p_q}")
+        print(f"Late I/Q: {corr_l_i}, {corr_l_q}")
+
         if dump_valid:
-            corr_p_i = yield dut.corr_p_i
-            corr_p_q = yield dut.corr_p_q
-            print(f"Prompt I: {corr_p_i}")
-            print(f"Prompt Q: {corr_p_q}")
-            print(f"Correlation power: {corr_p_i**2 + corr_p_q**2}")
+            power = corr_p_i**2 + corr_p_q**2
+            print(f"Correlation power: {power}")
+
+        # Verify correlation occurred
+        assert dump_valid == 1, "ERROR: Dump valid flag not set!"
+        assert corr_p_i != 0 or corr_p_q != 0, "ERROR: No correlation detected!"
+        print(f"E/P/L all match (as expected): {(corr_e_i == corr_p_i == corr_l_i) and (corr_e_q == corr_p_q == corr_l_q)}")
+        print("\nTEST PASSED: Correlator testbench completed successfully")
+
+        yield dut.dump.eq(0)
+        yield Tick()
 
     sim = Simulator(dut)
     sim.add_clock(1e-6)  # 1 MHz for faster simulation
-    sim.add_process(testbench)
+    sim.add_testbench(testbench)
 
     with sim.write_vcd("correlator.vcd", "correlator.gtkw"):
         sim.run()

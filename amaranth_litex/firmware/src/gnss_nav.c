@@ -11,10 +11,10 @@
 #include <stdio.h>
 #include <string.h>
 
-/* GPS parity check lookup table (simplified) */
-static const uint8_t gps_parity_table[6] = {
-    0x3B, 0x1D, 0x2E, 0x17, 0x3A, 0x1D
-};
+/* GPS parity check lookup table (simplified) - Reserved for future use */
+// static const uint8_t gps_parity_table[6] = {
+//     0x3B, 0x1D, 0x2E, 0x17, 0x3A, 0x1D
+// };
 
 void gps_nav_init(gps_nav_decoder_t *nav, uint8_t prn) {
     memset(nav, 0, sizeof(gps_nav_decoder_t));
@@ -23,6 +23,9 @@ void gps_nav_init(gps_nav_decoder_t *nav, uint8_t prn) {
 }
 
 bool gps_check_parity(uint32_t word, uint32_t prev_word) {
+    (void)word;      // TODO: Implement proper parity checking
+    (void)prev_word; // TODO: Implement proper parity checking
+
     // Simplified parity check
     // In production, implement full Hamming code parity checking
     // For now, just check that we have reasonable data
@@ -37,7 +40,7 @@ uint32_t gps_extract_data(uint32_t word) {
 
 void gps_decode_subframe(gps_nav_decoder_t *nav) {
     // Extract TLM and HOW words
-    uint32_t tlm = gps_extract_data(nav->subframe[0]);
+    // uint32_t tlm = gps_extract_data(nav->subframe[0]);  // Reserved for future use
     uint32_t how = gps_extract_data(nav->subframe[1]);
 
     // Subframe ID from HOW

@@ -116,7 +116,7 @@ class CodeNCO(wiring.Component):
 
 
 if __name__ == "__main__":
-    from amaranth.sim import Simulator
+    from amaranth.sim import Simulator, Tick
 
     dut = CodeNCO(code_length=1023)
 
@@ -129,7 +129,7 @@ if __name__ == "__main__":
         yield dut.freq_word.eq(freq_word_gps)
         yield dut.phase_offset.eq(0)
         yield dut.reset.eq(1)
-        yield
+        yield Tick()
         yield dut.reset.eq(0)
         yield dut.enable.eq(1)
 
@@ -138,7 +138,7 @@ if __name__ == "__main__":
 
         # Run for enough samples to see chip edges and epoch
         for cycle in range(20000):  # ~1.25 ms @ 16 MHz
-            yield
+            yield Tick()
 
             if (yield dut.chip_strobe):
                 chip_edges += 1
@@ -154,9 +154,16 @@ if __name__ == "__main__":
         print(f"Total epochs: {epochs}")
         print(f"Expected chips: ~{1.023e6 / 16e6 * 20000:.1f}")
 
+        # Verify results
+        assert chip_edges > 0, "ERROR: No chip edges detected!"
+        assert epochs > 0, "ERROR: No code epochs detected!"
+        expected_chips = int(1.023e6 / 16e6 * 20000)
+        assert abs(chip_edges - expected_chips) < 5, f"ERROR: Chip count mismatch! Got {chip_edges}, expected ~{expected_chips}"
+        print("\nTEST PASSED: Code NCO testbench completed successfully")
+
     sim = Simulator(dut)
     sim.add_clock(1/16e6)
-    sim.add_process(testbench)
+    sim.add_testbench(testbench)
 
     with sim.write_vcd("code_nco.vcd", "code_nco.gtkw"):
         sim.run()

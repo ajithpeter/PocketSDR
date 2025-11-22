@@ -272,7 +272,7 @@ class VahyaPlatform:
         """Get Vahya ECP5-25F platform."""
 
         from litex.build.lattice import LatticePlatform
-        from litex.build.generic_platform import *
+        from litex.build.generic_platform import Pins, Subsignal, IOStandard
 
         class VahyaECP5Platform(LatticePlatform):
             """Vahya board ECP5-25F platform."""

@@ -117,7 +117,7 @@ class NavICL5Generator(wiring.Component):
 
 
 if __name__ == "__main__":
-    from amaranth.sim import Simulator
+    from amaranth.sim import Simulator, Tick
 
     dut = NavICL5Generator()
 
@@ -130,14 +130,14 @@ if __name__ == "__main__":
         for prn in range(1, 15):  # Test all 14 PRNs
             yield dut.prn.eq(prn)
             yield dut.reset.eq(1)
-            yield
+            yield Tick()
             yield dut.reset.eq(0)
 
             code_sequence = []
             for chip in range(1023):
                 yield dut.chip_index.eq(chip)
                 yield dut.chip_strobe.eq(1)
-                yield
+                yield Tick()
                 yield dut.chip_strobe.eq(0)
 
                 code_bit = yield dut.code_prompt
@@ -155,13 +155,13 @@ if __name__ == "__main__":
             # Gold codes should have balance of 1
             assert balance == 1, f"PRN {prn} balance check failed!"
 
-        print("\n✓ All NavIC L5 PRN codes generated successfully")
+        print("\nAll NavIC L5 PRN codes generated successfully")
         print("  Code length: 1023 chips")
         print("  All codes have proper Gold code balance (±1)")
 
     sim = Simulator(dut)
     sim.add_clock(1e-6)
-    sim.add_process(testbench)
+    sim.add_testbench(testbench)
 
     with sim.write_vcd("navic_l5_gen.vcd", "navic_l5_gen.gtkw"):
         sim.run()

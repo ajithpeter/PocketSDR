@@ -152,11 +152,11 @@ class MAX2771Interface(wiring.Component):
 
 
 if __name__ == "__main__":
-    from amaranth.sim import Simulator, Settle
+    from amaranth.sim import Simulator
 
     dut = MAX2771Interface(fifo_depth=32)
 
-    def adc_process():
+    async def adc_process(ctx):
         """Simulate ADC providing samples."""
 
         # Test pattern: cycle through all 2-bit combinations
@@ -174,8 +174,7 @@ if __name__ == "__main__":
         print("-" * 55)
 
         for i, (i_raw, q_raw) in enumerate(test_patterns):
-            yield dut.iq_data.eq((q_raw << 2) | i_raw)
-            yield Settle()
+            ctx.set(dut.iq_data, (q_raw << 2) | i_raw)
 
             # Expected signed values
             i_exp = 1 if not (i_raw & 0b10) else (-2 if (i_raw & 0b01) else -1)
@@ -185,9 +184,9 @@ if __name__ == "__main__":
 
             # Wait a few ADC clock cycles
             for _ in range(4):
-                yield
+                await ctx.tick("adc")
 
-    def sys_process():
+    async def sys_process(ctx):
         """Read samples from system clock domain."""
 
         print("\nSystem Process: Reading samples from FIFO")
@@ -195,16 +194,16 @@ if __name__ == "__main__":
         print("-" * 25)
 
         # Assert ready to receive samples
-        yield dut.samples.ready.eq(1)
+        ctx.set(dut.samples.ready, 1)
 
         sample_count = 0
         for _ in range(100):  # Read up to 100 samples
-            yield
-            valid = yield dut.samples.valid
+            await ctx.tick()
+            valid = ctx.get(dut.samples.valid)
 
             if valid:
-                i_val = yield dut.samples.payload.i
-                q_val = yield dut.samples.payload.q
+                i_val = ctx.get(dut.samples.payload.i)
+                q_val = ctx.get(dut.samples.payload.q)
 
                 # Convert unsigned to signed for display
                 i_signed = i_val if i_val < 2 else i_val - 4
@@ -222,12 +221,10 @@ if __name__ == "__main__":
     sim.add_clock(1/16e6, domain="adc")   # 16 MHz ADC clock
     sim.add_clock(1/50e6, domain="sync")  # 50 MHz system clock
 
-    sim.add_process(adc_process, domain="adc")
-    sim.add_process(sys_process, domain="sync")
+    sim.add_testbench(adc_process)
+    sim.add_testbench(sys_process)
 
-    with sim.write_vcd("max2771_interface.vcd", "max2771_interface.gtkw",
-                       traces=[dut.iq_data, dut.samples.valid,
-                              dut.samples.payload.i, dut.samples.payload.q]):
+    with sim.write_vcd("max2771_interface.vcd"):
         sim.run()
 
     print("\nVCD waveform written to max2771_interface.vcd")

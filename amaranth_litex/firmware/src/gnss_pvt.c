@@ -150,6 +150,8 @@ void pvt_init(pvt_solution_t *pvt, double lat, double lon, double alt) {
 
 bool pvt_add_observation(pvt_solution_t *pvt, const satellite_obs_t *obs,
                          satellite_obs_t obs_array[], uint8_t *num_obs) {
+    (void)pvt;  /* Unused - reserved for future use */
+
     if (*num_obs >= MAX_SATELLITES) {
         return false;
     }
@@ -268,6 +270,9 @@ bool pvt_compute(pvt_solution_t *pvt, satellite_obs_t obs_array[], uint8_t num_o
 }
 
 void pvt_compute_dop(pvt_solution_t *pvt, satellite_obs_t obs_array[], uint8_t num_obs) {
+    (void)obs_array;  /* Unused - needed for full DOP computation */
+    (void)num_obs;    /* Unused - needed for full DOP computation */
+
     // Simplified DOP computation
     // In production, compute from covariance matrix
 

@@ -172,7 +172,7 @@ class GNSSBaseband(wiring.Component):
 
 
 if __name__ == "__main__":
-    from amaranth.sim import Simulator
+    from amaranth.sim import Simulator, Tick
     from amaranth.back import verilog
 
     dut = GNSSBaseband(num_channels=12, fifo_depth=256)
@@ -190,12 +190,12 @@ if __name__ == "__main__":
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(0)
-        yield
-        yield
+        yield Tick()
+        yield Tick()
         version = yield dut.wb_dat_r
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         print(f"  Version: 0x{version:08X}")
         assert version == 0xA5A50001, "Version mismatch!"
@@ -210,11 +210,11 @@ if __name__ == "__main__":
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(1)
-        yield
-        yield
+        yield Tick()
+        yield Tick()
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         # Write code frequency
         code_freq = int((1.023e6 / 16e6) * (2**32))
@@ -223,11 +223,11 @@ if __name__ == "__main__":
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(1)
-        yield
-        yield
+        yield Tick()
+        yield Tick()
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         # Write signal type (GPS L1 C/A)
         yield dut.wb_adr.eq(0x0014)
@@ -235,11 +235,11 @@ if __name__ == "__main__":
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(1)
-        yield
-        yield
+        yield Tick()
+        yield Tick()
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         # Write PRN
         yield dut.wb_adr.eq(0x0018)
@@ -247,11 +247,11 @@ if __name__ == "__main__":
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(1)
-        yield
-        yield
+        yield Tick()
+        yield Tick()
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         print("  Channel 0 configured")
 
@@ -263,11 +263,11 @@ if __name__ == "__main__":
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(1)
-        yield
-        yield
+        yield Tick()
+        yield Tick()
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         # Enable channel 0
         yield dut.wb_adr.eq(0x0000)
@@ -275,11 +275,11 @@ if __name__ == "__main__":
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(1)
-        yield
-        yield
+        yield Tick()
+        yield Tick()
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         print("  Global and channel controls enabled")
 
@@ -294,7 +294,7 @@ if __name__ == "__main__":
             iq_pattern = (i % 4) | ((i % 4) << 2)
             # Note: This won't work properly without adc clock domain simulation
             # Just demonstrating the interface
-            yield
+            yield Tick()
             if i % 10 == 0:
                 sample_valid = yield dut.status_sample_valid
                 if sample_valid:
@@ -307,12 +307,12 @@ if __name__ == "__main__":
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(0)
-        yield
-        yield
+        yield Tick()
+        yield Tick()
         corr_p_i = yield dut.wb_dat_r
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         print(f"  Prompt I correlation: {corr_p_i}")
 
@@ -336,7 +336,7 @@ if __name__ == "__main__":
     sim = Simulator(dut)
     sim.add_clock(1/50e6, domain="sync")   # 50 MHz system clock
     sim.add_clock(1/16e6, domain="adc")    # 16 MHz ADC clock
-    sim.add_process(testbench, domain="sync")
+    sim.add_process(testbench)
 
     with sim.write_vcd("gnss_baseband.vcd", "gnss_baseband.gtkw"):
         sim.run()

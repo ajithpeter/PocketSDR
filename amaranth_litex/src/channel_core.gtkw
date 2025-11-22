@@ -1,0 +1,17 @@
+[dumpfile] "/home/user/PocketSDR/amaranth_litex/src/channel_core.vcd"
+[dumpfile_size] 25356715
+[treeopen] top.
+@22
+bench.top.enable$7
+bench.top.samples__valid
+bench.top.samples__payload[3:0]
+bench.top.\samples__payload.i[1:0]
+bench.top.\samples__payload.q[1:0]
+bench.top.samples__payload[3:0]
+bench.top.\samples__payload.i[1:0]
+bench.top.\samples__payload.q[1:0]
+bench.top.chip_count[10:0]
+bench.top.code_epoch
+bench.top.dump_ready
+bench.top.corr_p_i[31:0]
+bench.top.corr_p_q[31:0]

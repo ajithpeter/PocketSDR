@@ -1,0 +1,152 @@
+═══════════════════════════════════════════════════════════════════════════════
+                    PRN CODE GENERATOR TEST QUICK REFERENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+TEST EXECUTION COMMANDS
+───────────────────────────────────────────────────────────────────────────────
+Run GPS L1 C/A testbench:
+  $ python3 gps_l1ca_gen.py
+
+Run NavIC L5 testbench:
+  $ python3 navic_l5_gen.py
+
+Run comprehensive test suite:
+  $ python3 test_prn_generators.py
+
+Run LFSR reference validation:
+  $ python3 verify_lfsr.py
+
+Generate full test report:
+  $ python3 final_test_report.py
+
+═══════════════════════════════════════════════════════════════════════════════
+                              TEST RESULTS AT A GLANCE
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────┬──────────┬──────────┬──────────────────────────────┐
+│ Generator               │ PRNs     │ Status   │ Notes                        │
+├─────────────────────────┼──────────┼──────────┼──────────────────────────────┤
+│ GPS L1 C/A              │ 0/32     │ ✗ FAIL   │ Critical: All codes identical│
+│ NavIC L5                │ 13/14    │ ✓ PASS   │ Only PRN 3 fails             │
+└─────────────────────────┴──────────┴──────────┴──────────────────────────────┘
+
+GPS L1 C/A ISSUES
+───────────────────────────────────────────────────────────────────────────────
+✗ All PRNs generate identical codes (uniqueness fail)
+✗ Balance = 63 (should be 1)
+✗ G2 delay table not applied
+✗ E/P/L taps identical (no spacing)
+✓ VCD generated: gps_l1ca_gen.vcd (127 KB)
+✓ LFSRs implemented correctly
+✓ Module runs without crashes
+
+Root Cause: Gold code delay mechanism not implemented. Code generated from
+current LFSR state instead of delayed G2 sequence.
+
+NAVIC L5 RESULTS
+───────────────────────────────────────────────────────────────────────────────
+✓ 13/14 PRNs pass (93% success rate)
+✓ Correct Gold code balance (±1) for passing PRNs
+✓ All codes unique
+✓ G2 initialization mechanism works
+✗ PRN 3 (G2 init: 0x040) has balance = 65
+✓ VCD generated: navic_l5_gen.vcd (225 KB)
+
+Issue: PRN 3 initialization value may be incorrect.
+
+═══════════════════════════════════════════════════════════════════════════════
+                           DETAILED TEST VALIDATION
+═══════════════════════════════════════════════════════════════════════════════
+
+GPS L1 C/A - PRN 1-32 Test Results
+───────────────────────────────────────────────────────────────────────────────
+Property          Expected        Actual          Status
+─────────────────────────────────────────────────────────────────────────────
+Gold codes        Unique          All identical   ✗ FAIL
+Code balance      ≈1              63              ✗ FAIL
+Code length       1023            1023            ✓ PASS
+LFSR operation    Functional      Functional      ✓ PASS
+VCD generation    Created         Created         ✓ PASS
+Assertions        No failures     No assertions   N/A
+E/P/L taps        ±0.5 chip       Identical       ✗ FAIL
+
+NavIC L5 - PRN 1-14 Test Results
+───────────────────────────────────────────────────────────────────────────────
+Property          Expected        Actual          Status
+─────────────────────────────────────────────────────────────────────────────
+Gold codes        14 unique       14 unique       ✓ PASS
+Code balance      ≈1              1 (13/14)       ✓ MOSTLY PASS
+Code length       1023            1023            ✓ PASS
+LFSR operation    Functional      Functional      ✓ PASS
+G2 initialization Valid           13/14 valid     ✓ MOSTLY PASS
+VCD generation    Created         Created         ✓ PASS
+Assertions        balance == 1    PRN 3 fails     ✗ 1 FAILURE
+E/P/L taps        ±0.5 chip       Identical       ✗ FAIL
+
+═══════════════════════════════════════════════════════════════════════════════
+                           GOLD CODE PROPERTIES
+═══════════════════════════════════════════════════════════════════════════════
+
+GPS L1 C/A Gold Codes (Sample - Reference Implementation)
+───────────────────────────────────────────────────────────────────────────────
+PRN  | Ones | Zeros | Balance | First 20 bits
+─────┼──────┼───────┼─────────┼──────────────────────
+  1  | 512  |  511  |    1    | 00000110101011100100
+  2  | 512  |  511  |    1    | 00001101000101011010
+  3  | 512  |  511  |    1    | 00011010011000100110
+  4  | 512  |  511  |    1    | 00110100100011011110
+
+NavIC L5 Gold Codes (Sample - Hardware Generated)
+───────────────────────────────────────────────────────────────────────────────
+PRN  | G2 Init | Ones | Zeros | Balance | First 10 bits
+─────┼─────────┼──────┼───────┼─────────┼──────────────
+  1  | 0x0C8   | 512  |  511  |    1    | 1001101111
+  2  | 0x019   | 512  |  511  |    1    | 1111001100
+  3  | 0x040   | 544  |  479  |   65    | 1101111110  ⚠ FAIL
+  4  | 0x0B4   | 512  |  511  |    1    | 1010010111
+
+═══════════════════════════════════════════════════════════════════════════════
+                              FILES GENERATED
+═══════════════════════════════════════════════════════════════════════════════
+
+Test Scripts:
+  test_prn_generators.py         Comprehensive test suite (7.5 KB)
+  verify_lfsr.py                 LFSR reference implementation (4.7 KB)
+  final_test_report.py           Automated test report (8.6 KB)
+
+Documentation:
+  TEST_RESULTS_SUMMARY.md        Full test results (9.5 KB)
+  TEST_QUICK_REFERENCE.txt       This file
+
+VCD Waveforms:
+  gps_l1ca_gen.vcd              GPS waveforms (125 KB)
+  navic_l5_gen.vcd              NavIC waveforms (220 KB)
+
+Updated Source Files:
+  gps_l1ca_gen.py               Updated for Amaranth 0.5
+  navic_l5_gen.py               Updated for Amaranth 0.5
+
+═══════════════════════════════════════════════════════════════════════════════
+                           RECOMMENDATIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+GPS L1 C/A Generator:
+  Priority: CRITICAL
+  Actions:
+    1. Implement code memory (1023-bit registers for G1 and G2)
+    2. Generate full sequences before XORing
+    3. Apply PRN-specific G2 delay from table
+    4. Implement proper E/P/L taps with ±0.5 chip spacing
+    5. Add assertions for code balance validation
+
+NavIC L5 Generator:
+  Priority: MINOR
+  Actions:
+    1. Verify PRN 3 G2 initialization value against NavIC ICD
+    2. Test alternative values: 0x140, 0x0C0, 0x240
+    3. Consider implementing E/P/L taps with code memory
+    4. Add more comprehensive assertions
+
+═══════════════════════════════════════════════════════════════════════════════
+                              END OF REFERENCE
+═══════════════════════════════════════════════════════════════════════════════

@@ -241,7 +241,7 @@ class WishboneCSRBridge(wiring.Component):
 
 
 if __name__ == "__main__":
-    from amaranth.sim import Simulator
+    from amaranth.sim import Simulator, Tick
 
     dut = WishboneCSRBridge(num_channels=12)
 
@@ -258,13 +258,13 @@ if __name__ == "__main__":
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(0)
-        yield
-        yield
+        yield Tick()
+        yield Tick()
         ack = yield dut.wb_ack
         version = yield dut.wb_dat_r
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         print(f"  ACK: {ack}, VERSION: 0x{version:08X}")
         assert version == 0xA5A50001, "Version mismatch!"
@@ -275,12 +275,12 @@ if __name__ == "__main__":
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(0)
-        yield
-        yield
+        yield Tick()
+        yield Tick()
         channel_count = yield dut.wb_dat_r
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         print(f"  CHANNEL_COUNT: {channel_count}")
         assert channel_count == 12, "Channel count mismatch!"
@@ -292,11 +292,11 @@ if __name__ == "__main__":
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(1)
-        yield
-        yield
+        yield Tick()
+        yield Tick()
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         global_enable = yield dut.global_enable
         sample_enable = yield dut.sample_enable
@@ -309,11 +309,11 @@ if __name__ == "__main__":
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(1)
-        yield
+        yield Tick()
 
         # Simulate CSR ready after 1 cycle
         yield dut.csr_ready.eq(1)
-        yield
+        yield Tick()
         yield dut.csr_ready.eq(0)
 
         csr_write = yield dut.csr_write
@@ -322,7 +322,7 @@ if __name__ == "__main__":
 
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         print(f"  CSR write: {csr_write}, addr: 0x{csr_addr:04X}, data: 0x{csr_data:08X}")
 
@@ -332,19 +332,19 @@ if __name__ == "__main__":
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(0)
-        yield
+        yield Tick()
 
         # Simulate CSR returning data
         yield dut.csr_read_data.eq(0xDEADBEEF)
         yield dut.csr_ready.eq(1)
-        yield
+        yield Tick()
         yield dut.csr_ready.eq(0)
-        yield
+        yield Tick()
 
         read_data = yield dut.wb_dat_r
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         print(f"  Read data: 0x{read_data:08X}")
         assert read_data == 0xDEADBEEF, "Read data mismatch!"
@@ -358,16 +358,16 @@ if __name__ == "__main__":
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(1)
-        yield
-        yield
+        yield Tick()
+        yield Tick()
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         # Trigger IRQ
         yield dut.irq_in.eq(1)
-        yield
-        yield
+        yield Tick()
+        yield Tick()
         irq_out = yield dut.irq_out
         print(f"  IRQ output: {irq_out}")
 
@@ -376,12 +376,12 @@ if __name__ == "__main__":
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(0)
-        yield
-        yield
+        yield Tick()
+        yield Tick()
         irq_status = yield dut.wb_dat_r
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         print(f"  IRQ status: 0x{irq_status:03X}")
 
@@ -391,11 +391,11 @@ if __name__ == "__main__":
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(1)
-        yield
-        yield
+        yield Tick()
+        yield Tick()
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         irq_out_cleared = yield dut.irq_out
         print(f"  IRQ output after clear: {irq_out_cleared}")
@@ -403,24 +403,25 @@ if __name__ == "__main__":
         # Test 7: Sample counter
         print("\n[TEST 7] Test sample counter")
 
-        # Enable sample counting
-        yield dut.sample_enable.eq(1)
+        # Sample enable already set in Test 3 via GLOBAL_CTRL
+        # Wait for some samples to accumulate
         for _ in range(100):
-            yield
+            yield Tick()
 
         # Read sample count
         yield dut.wb_adr.eq(0x1010)
         yield dut.wb_cyc.eq(1)
         yield dut.wb_stb.eq(1)
         yield dut.wb_we.eq(0)
-        yield
-        yield
+        yield Tick()
+        yield Tick()
         sample_count = yield dut.wb_dat_r
         yield dut.wb_cyc.eq(0)
         yield dut.wb_stb.eq(0)
-        yield
+        yield Tick()
 
         print(f"  Sample count: {sample_count}")
+        assert sample_count > 0, "Sample counter not incrementing!"
 
         print("\n" + "=" * 70)
         print("✓ Wishbone CSR Bridge Test Complete")

@@ -127,6 +127,17 @@ class ChannelManager(wiring.Component):
         # Epoch counters (incremented on code epoch)
         ch_epoch_count = Array([Signal(32, name=f"ch{i}_epoch_count") for i in range(self.num_channels)])
 
+        # Channel output arrays (for CSR access)
+        ch_dump_ready = Array([Signal(name=f"ch{i}_dump_ready") for i in range(self.num_channels)])
+        ch_code_epoch = Array([Signal(name=f"ch{i}_code_epoch") for i in range(self.num_channels)])
+        ch_corr_e_i = Array([Signal(signed(32), name=f"ch{i}_corr_e_i") for i in range(self.num_channels)])
+        ch_corr_e_q = Array([Signal(signed(32), name=f"ch{i}_corr_e_q") for i in range(self.num_channels)])
+        ch_corr_p_i = Array([Signal(signed(32), name=f"ch{i}_corr_p_i") for i in range(self.num_channels)])
+        ch_corr_p_q = Array([Signal(signed(32), name=f"ch{i}_corr_p_q") for i in range(self.num_channels)])
+        ch_corr_l_i = Array([Signal(signed(32), name=f"ch{i}_corr_l_i") for i in range(self.num_channels)])
+        ch_corr_l_q = Array([Signal(signed(32), name=f"ch{i}_corr_l_q") for i in range(self.num_channels)])
+        ch_chip_count = Array([Signal(16, name=f"ch{i}_chip_count") for i in range(self.num_channels)])
+
         # Connect configuration to channels
         for ch_id, ch in enumerate(channels):
             m.d.comb += [
@@ -137,7 +148,17 @@ class ChannelManager(wiring.Component):
                 ch.code_freq.eq(ch_code_freq[ch_id]),
                 ch.signal_type.eq(ch_signal_type[ch_id]),
                 ch.prn.eq(ch_prn[ch_id]),
-                ch.integration_time.eq(ch_integration_time[ch_id])
+                ch.integration_time.eq(ch_integration_time[ch_id]),
+                # Connect outputs to arrays
+                ch_dump_ready[ch_id].eq(ch.dump_ready),
+                ch_code_epoch[ch_id].eq(ch.code_epoch),
+                ch_corr_e_i[ch_id].eq(ch.corr_e_i),
+                ch_corr_e_q[ch_id].eq(ch.corr_e_q),
+                ch_corr_p_i[ch_id].eq(ch.corr_p_i),
+                ch_corr_p_q[ch_id].eq(ch.corr_p_q),
+                ch_corr_l_i[ch_id].eq(ch.corr_l_i),
+                ch_corr_l_q[ch_id].eq(ch.corr_l_q),
+                ch_chip_count[ch_id].eq(ch.chip_count)
             ]
 
             # Epoch counter
@@ -193,8 +214,8 @@ class ChannelManager(wiring.Component):
                     )
                 with m.Case(0x04):  # STATUS
                     m.d.sync += self.csr_read_data.eq(
-                        Cat(channels[csr_channel].dump_ready,
-                            channels[csr_channel].code_epoch,
+                        Cat(ch_dump_ready[csr_channel],
+                            ch_code_epoch[csr_channel],
                             Const(0, 30))
                     )
                 with m.Case(0x08):  # CARRIER_FREQ
@@ -210,19 +231,19 @@ class ChannelManager(wiring.Component):
                 with m.Case(0x1C):  # INTEGRATION_TIME
                     m.d.sync += self.csr_read_data.eq(ch_integration_time[csr_channel])
                 with m.Case(0x20):  # CORR_E_I
-                    m.d.sync += self.csr_read_data.eq(channels[csr_channel].corr_e_i)
+                    m.d.sync += self.csr_read_data.eq(ch_corr_e_i[csr_channel])
                 with m.Case(0x24):  # CORR_E_Q
-                    m.d.sync += self.csr_read_data.eq(channels[csr_channel].corr_e_q)
+                    m.d.sync += self.csr_read_data.eq(ch_corr_e_q[csr_channel])
                 with m.Case(0x28):  # CORR_P_I
-                    m.d.sync += self.csr_read_data.eq(channels[csr_channel].corr_p_i)
+                    m.d.sync += self.csr_read_data.eq(ch_corr_p_i[csr_channel])
                 with m.Case(0x2C):  # CORR_P_Q
-                    m.d.sync += self.csr_read_data.eq(channels[csr_channel].corr_p_q)
+                    m.d.sync += self.csr_read_data.eq(ch_corr_p_q[csr_channel])
                 with m.Case(0x30):  # CORR_L_I
-                    m.d.sync += self.csr_read_data.eq(channels[csr_channel].corr_l_i)
+                    m.d.sync += self.csr_read_data.eq(ch_corr_l_i[csr_channel])
                 with m.Case(0x34):  # CORR_L_Q
-                    m.d.sync += self.csr_read_data.eq(channels[csr_channel].corr_l_q)
+                    m.d.sync += self.csr_read_data.eq(ch_corr_l_q[csr_channel])
                 with m.Case(0x38):  # CHIP_COUNT
-                    m.d.sync += self.csr_read_data.eq(channels[csr_channel].chip_count)
+                    m.d.sync += self.csr_read_data.eq(ch_chip_count[csr_channel])
                 with m.Case(0x3C):  # EPOCH_COUNT
                     m.d.sync += self.csr_read_data.eq(ch_epoch_count[csr_channel])
                 with m.Default():
@@ -251,7 +272,7 @@ class ChannelManager(wiring.Component):
 
 
 if __name__ == "__main__":
-    from amaranth.sim import Simulator
+    from amaranth.sim import Simulator, Tick
 
     dut = ChannelManager(num_channels=4)  # Use 4 channels for faster simulation
 
@@ -270,50 +291,50 @@ if __name__ == "__main__":
         yield dut.csr_addr.eq(0x008)
         yield dut.csr_write_data.eq(carrier_freq)
         yield dut.csr_write.eq(1)
-        yield
+        yield Tick()
         yield dut.csr_write.eq(0)
-        yield
+        yield Tick()
 
         # Write CODE_FREQ (address 0x010)
         code_freq = int((1.023e6 / 16e6) * (2**32))
         yield dut.csr_addr.eq(0x010)
         yield dut.csr_write_data.eq(code_freq)
         yield dut.csr_write.eq(1)
-        yield
+        yield Tick()
         yield dut.csr_write.eq(0)
-        yield
+        yield Tick()
 
         # Write SIGNAL_TYPE (address 0x014)
         yield dut.csr_addr.eq(0x014)
         yield dut.csr_write_data.eq(0)  # GPS L1 C/A
         yield dut.csr_write.eq(1)
-        yield
+        yield Tick()
         yield dut.csr_write.eq(0)
-        yield
+        yield Tick()
 
         # Write PRN (address 0x018)
         yield dut.csr_addr.eq(0x018)
         yield dut.csr_write_data.eq(1)  # PRN 1
         yield dut.csr_write.eq(1)
-        yield
+        yield Tick()
         yield dut.csr_write.eq(0)
-        yield
+        yield Tick()
 
         # Write INTEGRATION_TIME (address 0x01C)
         yield dut.csr_addr.eq(0x01C)
         yield dut.csr_write_data.eq(1000)
         yield dut.csr_write.eq(1)
-        yield
+        yield Tick()
         yield dut.csr_write.eq(0)
-        yield
+        yield Tick()
 
         # Enable channel (write CTRL at 0x000)
         yield dut.csr_addr.eq(0x000)
         yield dut.csr_write_data.eq(0b01)  # ENABLE=1
         yield dut.csr_write.eq(1)
-        yield
+        yield Tick()
         yield dut.csr_write.eq(0)
-        yield
+        yield Tick()
 
         print("  Configuration written via CSR interface")
 
@@ -325,33 +346,33 @@ if __name__ == "__main__":
         yield dut.csr_addr.eq(0x110)
         yield dut.csr_write_data.eq(code_freq_navic)
         yield dut.csr_write.eq(1)
-        yield
+        yield Tick()
         yield dut.csr_write.eq(0)
-        yield
+        yield Tick()
 
         # SIGNAL_TYPE (address 0x114)
         yield dut.csr_addr.eq(0x114)
         yield dut.csr_write_data.eq(1)  # NavIC L5
         yield dut.csr_write.eq(1)
-        yield
+        yield Tick()
         yield dut.csr_write.eq(0)
-        yield
+        yield Tick()
 
         # PRN (address 0x118)
         yield dut.csr_addr.eq(0x118)
         yield dut.csr_write_data.eq(5)  # PRN 5
         yield dut.csr_write.eq(1)
-        yield
+        yield Tick()
         yield dut.csr_write.eq(0)
-        yield
+        yield Tick()
 
         # Enable channel (address 0x100)
         yield dut.csr_addr.eq(0x100)
         yield dut.csr_write_data.eq(0b01)
         yield dut.csr_write.eq(1)
-        yield
+        yield Tick()
         yield dut.csr_write.eq(0)
-        yield
+        yield Tick()
 
         print("  Configuration written via CSR interface")
 
@@ -362,7 +383,7 @@ if __name__ == "__main__":
             yield dut.samples.payload.i.eq(1)
             yield dut.samples.payload.q.eq(0)
             yield dut.samples.valid.eq(1)
-            yield
+            yield Tick()
 
             # Check for interrupts
             irq = yield dut.irq
@@ -372,9 +393,9 @@ if __name__ == "__main__":
                 # Read channel 0 status
                 yield dut.csr_addr.eq(0x004)
                 yield dut.csr_read.eq(1)
-                yield
+                yield Tick()
                 yield dut.csr_read.eq(0)
-                yield
+                yield Tick()
                 status_ch0 = yield dut.csr_read_data
                 dump_ready_ch0 = status_ch0 & 1
 
@@ -382,16 +403,16 @@ if __name__ == "__main__":
                     # Read correlation results
                     yield dut.csr_addr.eq(0x028)  # CORR_P_I
                     yield dut.csr_read.eq(1)
-                    yield
+                    yield Tick()
                     yield dut.csr_read.eq(0)
-                    yield
+                    yield Tick()
                     corr_p_i = yield dut.csr_read_data
 
                     yield dut.csr_addr.eq(0x02C)  # CORR_P_Q
                     yield dut.csr_read.eq(1)
-                    yield
+                    yield Tick()
                     yield dut.csr_read.eq(0)
-                    yield
+                    yield Tick()
                     corr_p_q = yield dut.csr_read_data
 
                     print(f"  Ch0 Prompt I/Q: {corr_p_i} / {corr_p_q}")
@@ -411,7 +432,7 @@ if __name__ == "__main__":
 
     sim = Simulator(dut)
     sim.add_clock(1/16e6)  # 16 MHz
-    sim.add_process(testbench)
+    sim.add_testbench(testbench)
 
     with sim.write_vcd("channel_manager.vcd", "channel_manager.gtkw"):
         sim.run()
