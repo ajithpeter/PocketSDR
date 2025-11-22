@@ -72,26 +72,28 @@ class PPS_Generator(wiring.Component):
 
         # Main PPS generation logic
         with m.If(self.enable):
-            # Track TOW milliseconds
+            # Detect second boundary from TOW updates
+            # TOW is in milliseconds, so TOW % 1000 == 0 means new second
             with m.If(self.tow_update & self.tow_valid):
-                m.d.sync += [
-                    last_tow.eq(self.tow),
-                    ms_counter.eq(self.tow[:10])  # Lower 10 bits = ms within second
-                ]
+                m.d.sync += last_tow.eq(self.tow)
 
-            # Increment second counter
-            with m.If(second_counter == (self.sys_clk_freq - 1)):
-                m.d.sync += second_counter.eq(0)
+                # Check if this TOW marks a second boundary
+                # TOW % 1000 == 0 means we're at a new second
+                tow_mod_1000 = Signal(10)
+                m.d.comb += tow_mod_1000.eq(self.tow - ((self.tow // 1000) * 1000))
 
-                # Check if we're at second boundary (ms == 0)
-                with m.If(ms_counter == 0):
-                    # Generate PPS pulse
+                with m.If(tow_mod_1000 == 0):
+                    # Generate PPS pulse at second boundary
                     m.d.sync += [
                         pps_active.eq(1),
                         pulse_counter.eq(0),
                         pps_count_reg.eq(pps_count_reg + 1),
                         led_timer.eq(0)
                     ]
+
+            # Update second counter (for timing reference)
+            with m.If(second_counter == (self.sys_clk_freq - 1)):
+                m.d.sync += second_counter.eq(0)
             with m.Else():
                 m.d.sync += second_counter.eq(second_counter + 1)
 
@@ -319,8 +321,9 @@ class PIController(wiring.Component):
             m.d.comb += pi_output.eq(0)
 
         # Convert to DAC value (unsigned 16-bit)
+        # Negative feedback: positive error (late) should reduce DAC (slow down)
         dac_signed = Signal(signed(32))
-        m.d.comb += dac_signed.eq((pi_output >> 16) + DAC_CENTER)
+        m.d.comb += dac_signed.eq(DAC_CENTER - (pi_output >> 16))
 
         # Clamp to DAC range
         with m.If(dac_signed < 0):
