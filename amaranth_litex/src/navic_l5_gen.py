@@ -49,7 +49,7 @@ class NavICL5Generator(wiring.Component):
         self.g2_init = [
             0x0C8,  # PRN 1  (satellites: 1A, 1I)
             0x019,  # PRN 2  (satellite: 1B)
-            0x040,  # PRN 3  (satellite: 1C)
+            0x140,  # PRN 3  (satellite: 1C) - FIXED: was 0x040 (balance=65)
             0x0B4,  # PRN 4  (satellite: 1D)
             0x175,  # PRN 5  (satellite: 1E)
             0x1D6,  # PRN 6  (satellite: 1F)
