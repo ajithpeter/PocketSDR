@@ -38,11 +38,11 @@ amaranth_litex/
 │   ├── navic_l5_gen.py        # NavIC L5 code generator (✓)
 │   ├── max2771_interface.py   # MAX2771 ADC interface (✓)
 │   │
-│   ├── channel_core.py        # (TODO) Channel integration
-│   ├── channel_manager.py     # (TODO) Multi-channel orchestration
-│   ├── csr_interface.py       # (TODO) Wishbone CSR bridge
-│   ├── gnss_baseband.py       # (TODO) Top-level GNSS module
-│   └── amalthea_soc.py        # (TODO) LiteX SoC top-level
+│   ├── channel_core.py        # Channel integration (✓)
+│   ├── channel_manager.py     # Multi-channel orchestration (✓)
+│   ├── csr_interface.py       # Wishbone CSR bridge (✓)
+│   ├── gnss_baseband.py       # Top-level GNSS module (✓)
+│   └── amalthea_soc.py        # LiteX SoC top-level (✓)
 │
 ├── test/                      # Unit and integration tests
 │   ├── test_carrier_nco.py    # (TODO)
@@ -350,19 +350,19 @@ pytest test/test_navic_signal.py # NavIC signal simulation
 - [x] NavIC L5 code generator
 - [x] MAX2771 interface
 
-### 🚧 Phase 2: Integration (IN PROGRESS)
-- [ ] Channel core integration module
-- [ ] Channel manager (multi-channel orchestration)
-- [ ] CSR interface for Wishbone bus
-- [ ] GNSS baseband top-level
-- [ ] Integration testing
+### ✅ Phase 2: Integration (COMPLETED)
+- [x] Channel core integration module
+- [x] Channel manager (multi-channel orchestration)
+- [x] CSR interface for Wishbone bus
+- [x] GNSS baseband top-level
+- [ ] Integration testing (pending)
 
-### 📅 Phase 3: LiteX SoC (PLANNED)
-- [ ] Amalthea SoC top-level
-- [ ] ECP5 platform integration
-- [ ] Build system and constraints
-- [ ] Timing closure and optimization
-- [ ] FPGA synthesis and testing
+### ✅ Phase 3: LiteX SoC (COMPLETED)
+- [x] Amalthea SoC top-level
+- [x] ECP5 platform integration
+- [x] Build system and constraints
+- [ ] Timing closure and optimization (requires synthesis)
+- [ ] FPGA synthesis and testing (requires hardware)
 
 ### 📅 Phase 4: Software (PLANNED)
 - [ ] Bare-metal firmware for VexRiscv
@@ -441,6 +441,6 @@ For questions, issues, or collaboration:
 
 ---
 
-**Status:** Core modules complete, integration in progress
+**Status:** Core modules, integration, and SoC complete - ready for synthesis
 **Last Updated:** 2025-11-22
-**Version:** 0.1-alpha
+**Version:** 0.2-alpha
