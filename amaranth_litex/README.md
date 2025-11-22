@@ -13,13 +13,19 @@ This project implements a complete GNSS receiver baseband processor in Amaranth 
 - **NavIC L5** (1176.45 MHz, 10.23 Mcps)
 
 ### Key Features
-- ✅ **12-channel** hardware-accelerated correlation
+- ✅ **12-channel** hardware-accelerated correlation (ECP5-45F)
+- ✅ **8-channel** optimized version for ECP5-25F (**Vahya board**)
 - ✅ **Real-time processing** at 4-16 Msps sampling rates
 - ✅ **Carrier and code NCOs** with 32-bit phase resolution (0.0037 Hz Doppler accuracy)
 - ✅ **E/P/L correlators** with configurable integration periods
 - ✅ **Wishbone CSR interface** for CPU control
 - ✅ **LiteX SoC integration** with VexRiscv RISC-V CPU
+- ✅ **USB bulk streaming** via USB3343 ULPI (Vahya board)
 - ✅ **Modular Amaranth design** with comprehensive testing
+
+### Hardware Support
+- 🔧 **Generic Amalthea** - ECP5-45F (12 channels, 128 KB SRAM)
+- ✅ **Vahya Board** - ECP5-25F (8 channels, 64 KB SRAM, USB streaming) - **Production Ready**
 
 ---
 
@@ -27,32 +33,37 @@ This project implements a complete GNSS receiver baseband processor in Amaranth 
 
 ```
 amaranth_litex/
-├── README.md                  # This file
-├── DESIGN.md                  # Complete design specification (1500+ lines)
+├── README.md                      # This file
+├── DESIGN.md                      # Complete design specification (1500+ lines)
+├── IMPLEMENTATION_SUMMARY.md      # Implementation summary and metrics (✓)
+├── VAHYA_OPTIMIZATIONS.md         # Vahya board optimizations (✓)
 │
-├── src/                       # Amaranth HDL modules
-│   ├── carrier_nco.py         # Carrier NCO with LUT sin/cos (✓)
-│   ├── code_nco.py            # Code NCO with chip timing (✓)
-│   ├── correlator.py          # E/P/L complex correlator (✓)
-│   ├── gps_l1ca_gen.py        # GPS L1 C/A code generator (✓)
-│   ├── navic_l5_gen.py        # NavIC L5 code generator (✓)
-│   ├── max2771_interface.py   # MAX2771 ADC interface (✓)
+├── src/                           # Amaranth HDL modules
+│   ├── carrier_nco.py             # Carrier NCO with LUT sin/cos (✓)
+│   ├── code_nco.py                # Code NCO with chip timing (✓)
+│   ├── correlator.py              # E/P/L complex correlator (✓)
+│   ├── gps_l1ca_gen.py            # GPS L1 C/A code generator (✓)
+│   ├── navic_l5_gen.py            # NavIC L5 code generator (✓)
+│   ├── max2771_interface.py       # MAX2771 ADC interface (✓)
 │   │
-│   ├── channel_core.py        # Channel integration (✓)
-│   ├── channel_manager.py     # Multi-channel orchestration (✓)
-│   ├── csr_interface.py       # Wishbone CSR bridge (✓)
-│   ├── gnss_baseband.py       # Top-level GNSS module (✓)
-│   └── amalthea_soc.py        # LiteX SoC top-level (✓)
+│   ├── channel_core.py            # Channel integration (✓)
+│   ├── channel_manager.py         # Multi-channel orchestration (✓)
+│   ├── csr_interface.py           # Wishbone CSR bridge (✓)
+│   ├── gnss_baseband.py           # Top-level GNSS module (✓)
+│   ├── amalthea_soc.py            # LiteX SoC - ECP5-45F (12 ch) (✓)
+│   └── vahya_gnss_soc.py          # LiteX SoC - ECP5-25F (8 ch) (✓)
 │
-├── test/                      # Unit and integration tests
-│   ├── test_carrier_nco.py    # (TODO)
-│   ├── test_code_nco.py       # (TODO)
-│   ├── test_correlator.py     # (TODO)
-│   ├── test_integration.py    # (TODO)
+├── test/                          # Unit and integration tests
+│   ├── test_carrier_nco.py        # (TODO)
+│   ├── test_code_nco.py           # (TODO)
+│   ├── test_correlator.py         # (TODO)
+│   ├── test_integration.py        # (TODO)
 │   └── ...
 │
-├── docs/                      # Additional documentation
-└── build/                     # Synthesis output
+├── docs/                          # Additional documentation
+└── build/                         # Synthesis output
+    ├── amalthea/                  # ECP5-45F builds
+    └── vahya/                     # ECP5-25F builds (Vahya board)
 ```
 
 ---
@@ -95,14 +106,31 @@ python3 max2771_interface.py  # Tests ADC interface
 gtkwave carrier_nco.vcd
 ```
 
-### Building for ECP5 (Future)
+### Building for ECP5
+
+#### Vahya Board (ECP5-25F) - Production Ready
 
 ```bash
-# Synthesize GNSS baseband
+# Build for Vahya board (8 channels, USB streaming)
+python3 src/vahya_gnss_soc.py --build
+
+# Program FPGA via JTAG
+python3 src/vahya_gnss_soc.py --load
+# Or manually:
+openFPGALoader -c ft2232 build/vahya/gateware/vahya_gnss.bit
+
+# Build with custom channel count
+python3 src/vahya_gnss_soc.py --build --channels 6
+```
+
+#### Generic Amalthea (ECP5-45F)
+
+```bash
+# Build for ECP5-45F (12 channels)
 python3 src/amalthea_soc.py --build
 
 # Program FPGA
-openFPGALoader -b ecp5-evn build/amalthea/gateware/amalthea.bit
+openFPGALoader -b ecp5-evn build/amalthea/gateware/amalthea_gnss.bit
 ```
 
 ---
