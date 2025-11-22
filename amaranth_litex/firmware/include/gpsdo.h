@@ -91,6 +91,7 @@ typedef struct {
     int32_t max_phase_error;    /* Maximum phase error seen (ns) */
     int32_t avg_phase_error;    /* Average phase error (ns) */
     uint32_t lock_time;         /* Total time locked (seconds) */
+    uint32_t lock_count;        /* Number of times locked */
     uint32_t holdover_events;   /* Number of holdover events */
     uint32_t max_holdover_time; /* Longest holdover duration (seconds) */
 } gpsdo_stats_t;
